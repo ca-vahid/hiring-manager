@@ -1,4 +1,5 @@
 import { AIAnalysis, AIModel, CategoryScores } from '../types';
+import { debug, loggedApiCall } from '@/lib/debug';
 
 // Global interface for document analysis requests
 export interface DocumentAnalysisRequest {
@@ -23,21 +24,34 @@ export interface DocumentAnalysisResponse {
 export const analyzeDocument = async (request: DocumentAnalysisRequest): Promise<AIAnalysis> => {
   const { model } = request;
   
+  debug.info(`Starting document analysis with ${model.toUpperCase()}`, {
+    fileName: request.fileName,
+    contentLength: request.fileContent.length,
+    fileType: request.fileType
+  });
+  
   let response: DocumentAnalysisResponse;
   
-  if (model === 'openai') {
-    response = await analyzeWithOpenAI(request);
-  } else if (model === 'gemini') {
-    response = await analyzeWithGemini(request);
-  } else {
-    throw new Error(`Unsupported AI model: ${model}`);
+  try {
+    if (model === 'openai') {
+      response = await analyzeWithOpenAI(request);
+    } else if (model === 'gemini') {
+      response = await analyzeWithGemini(request);
+    } else {
+      throw new Error(`Unsupported AI model: ${model}`);
+    }
+    
+    debug.success(`${model.toUpperCase()} analysis completed successfully`);
+    
+    return {
+      ...response,
+      model,
+      generatedAt: Date.now()
+    };
+  } catch (error) {
+    debug.error(`${model.toUpperCase()} analysis failed`, error);
+    throw error;
   }
-  
-  return {
-    ...response,
-    model,
-    generatedAt: Date.now()
-  };
 };
 
 /**
@@ -46,27 +60,20 @@ export const analyzeDocument = async (request: DocumentAnalysisRequest): Promise
 const analyzeWithOpenAI = async (request: DocumentAnalysisRequest): Promise<DocumentAnalysisResponse> => {
   const { fileContent, fileName, fileType } = request;
   
+  debug.info(`Sending content to OpenAI for analysis (${fileName})`);
+  
   try {
-    const response = await fetch('/api/openai/analyze-document', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    return await loggedApiCall<DocumentAnalysisResponse>(
+      '/api/openai/analyze-document',
+      'POST',
+      {
         content: fileContent,
         fileName,
         fileType
-      }),
-    });
-    
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`OpenAI analysis failed: ${error}`);
-    }
-    
-    return await response.json();
+      }
+    );
   } catch (error) {
-    console.error('Error analyzing document with OpenAI:', error);
+    debug.error('Error analyzing document with OpenAI:', error);
     throw error;
   }
 };
@@ -77,27 +84,20 @@ const analyzeWithOpenAI = async (request: DocumentAnalysisRequest): Promise<Docu
 const analyzeWithGemini = async (request: DocumentAnalysisRequest): Promise<DocumentAnalysisResponse> => {
   const { fileContent, fileName, fileType } = request;
   
+  debug.info(`Sending content to Gemini for analysis (${fileName})`);
+  
   try {
-    const response = await fetch('/api/gemini/analyze-document', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    return await loggedApiCall<DocumentAnalysisResponse>(
+      '/api/gemini/analyze-document',
+      'POST',
+      {
         content: fileContent,
         fileName,
         fileType
-      }),
-    });
-    
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Gemini analysis failed: ${error}`);
-    }
-    
-    return await response.json();
+      }
+    );
   } catch (error) {
-    console.error('Error analyzing document with Gemini:', error);
+    debug.error('Error analyzing document with Gemini:', error);
     throw error;
   }
 };
@@ -118,31 +118,29 @@ export const compareWithAI = async (
   jobDescription: string,
   model: AIModel
 ): Promise<string> => {
+  const endpoint = model === 'openai' 
+    ? '/api/openai/compare-candidates'
+    : '/api/gemini/compare-candidates';
+  
+  debug.info(`Starting candidate comparison with ${model.toUpperCase()}`, {
+    candidateCount: candidates.length,
+    jobDescriptionLength: jobDescription.length
+  });
+  
   try {
-    const endpoint = model === 'openai' 
-      ? '/api/openai/compare-candidates'
-      : '/api/gemini/compare-candidates';
-      
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    const result = await loggedApiCall<{ analysis: string }>(
+      endpoint,
+      'POST',
+      {
         candidates,
         jobDescription
-      }),
-    });
+      }
+    );
     
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`AI comparison failed: ${error}`);
-    }
-    
-    const result = await response.json();
+    debug.success(`${model.toUpperCase()} comparison completed successfully`);
     return result.analysis;
   } catch (error) {
-    console.error(`Error comparing candidates with ${model}:`, error);
+    debug.error(`Error comparing candidates with ${model}:`, error);
     throw error;
   }
 }; 
