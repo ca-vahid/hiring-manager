@@ -1,0 +1,39 @@
+// Firestore Rules
+// Copy these to your Firebase Console -> Firestore Database -> Rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow read and write access to all users who are authenticated
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // For testing only (if authentication doesn't work, comment out the rule above and uncomment this)
+    // WARNING: This rule allows anyone to read/write your database
+    // match /{document=**} {
+    //   allow read, write;
+    // }
+  }
+}
+
+// ==========================================================
+
+// Storage Rules
+// Copy these to your Firebase Console -> Storage -> Rules
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Allow read and write access to all users who are authenticated
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // For testing only (if authentication doesn't work, uncomment this)
+    // WARNING: This rule allows anyone to read/write your storage
+    // match /{allPaths=**} {
+    //   allow read, write;
+    // }
+  }
+} 
